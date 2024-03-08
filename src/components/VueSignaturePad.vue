@@ -92,6 +92,50 @@ export default defineComponent({
   },
 
   methods: {
+
+    removeBlanks() {
+    var imgWidth = this.signaturePad._ctx.canvas.width;
+    var imgHeight = this.signaturePad._ctx.canvas.height;
+    var imageData = this.signaturePad._ctx.getImageData(0, 0, imgWidth, imgHeight);
+    var data = imageData.data;
+    var getAlpha = function(x, y) {
+        return data[(imgWidth * y + x) * 4 + 3];
+    };
+    var scanY = function(fromTop) {
+        var offset = fromTop ? 1 : -1;
+        for (var y = fromTop ? 0 : imgHeight - 1; fromTop ? (y < imgHeight) : (y > -1); y += offset) {
+            for (var x = 0; x < imgWidth; x++) {
+                if (getAlpha(x, y)) {
+                    return y;
+                }
+            }
+        }
+        return null; // All image is white
+    };
+    var scanX = function(fromLeft) {
+        var offset = fromLeft ? 1 : -1;
+        for (var x = fromLeft ? 0 : imgWidth - 1; fromLeft ? (x < imgWidth) : (x > -1); x += offset) {
+            for (var y = 0; y < imgHeight; y++) {
+                if (getAlpha(x, y)) {
+                    return x;
+                }
+            }
+        }
+        return null; // All image is white
+    };
+
+    var cropTop = scanY(true),
+        cropBottom = scanY(false),
+        cropLeft = scanX(true),
+        cropRight = scanX(false);
+
+    var relevantData = this.signaturePad._ctx.getImageData(cropLeft, cropTop, cropRight - cropLeft, cropBottom - cropTop);
+    this.signaturePad._canvas.width = cropRight - cropLeft;
+    this.signaturePad._canvas.height = cropBottom - cropTop;
+    this.signaturePad._ctx.clearRect(0, 0, cropRight - cropLeft, cropBottom - cropTop);
+    this.signaturePad._ctx.putImageData(relevantData, 0, 0);
+  },
+
     resizeCanvas() {
       const canvas = this.$refs.signaturePadCanvas;
       const data = this.signaturePad.toData();
@@ -125,7 +169,10 @@ export default defineComponent({
           isEmpty: true
         };
       } else {
+        this.removeBlanks(); // Call removeBlanks here to trim the signature
+
         this.signatureData = signaturePad.toDataURL(type, encoderOptions);
+
 
         return {
           ...status,
